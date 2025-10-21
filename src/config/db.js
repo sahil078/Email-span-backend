@@ -1,29 +1,29 @@
 const mongoose = require('mongoose');
 
-let isConnected = false;
+const { MONGODB_URI, MONGODB_DB } = process.env;
+if (!MONGODB_URI) throw new Error('Missing MONGODB_URI');
+
+mongoose.set('strictQuery', false);
+mongoose.set('bufferCommands', false);
+
+let cached = global.mongoose;
+if (!cached) cached = (global.mongoose = { conn: null, promise: null });
 
 async function connectDB() {
-  if (isConnected) {
-    // Reuse existing connection in serverless environment
-    return;
+  if (cached.conn) return cached.conn;
+
+  if (!cached.promise) {
+    cached.promise = mongoose
+      .connect(MONGODB_URI, {
+        dbName: MONGODB_DB || undefined,
+        serverSelectionTimeoutMS: 5000,
+        maxPoolSize: 10,
+      })
+      .then((m) => m.connection);
   }
 
-  const uri = process.env.MONGODB_URI;
-  if (!uri) {
-    throw new Error('❌ MONGODB_URI not found in environment variables');
-  }
-
-  try {
-    const db = await mongoose.connect(uri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    isConnected = db.connections[0].readyState;
-    console.log('✅ MongoDB connected');
-  } catch (err) {
-    console.error('❌ MongoDB connection error:', err);
-    throw err;
-  }
+  cached.conn = await cached.promise;
+  return cached.conn;
 }
 
 module.exports = connectDB;
