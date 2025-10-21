@@ -17,7 +17,7 @@ app.use(helmet());
 // 🌐 CORS Configuration
 // -------------------------------
 app.use(cors({
-  origin: true, // Allow all origins (change this in production)
+  origin: "https://email-spam-frontend-six.vercel.app",
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
