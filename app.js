@@ -8,67 +8,105 @@ const testsRouter = require('./src/routes/tests');
 
 const app = express();
 
-// Security
+// -------------------------------
+// 🔒 Security Middleware
+// -------------------------------
 app.use(helmet());
 
-// CORS (allow specific origins or fallback to *)
-const allowed = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
-const corsOptions = {
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // same-origin or curl
-    if (allowed.length === 0 || allowed.includes('*') || allowed.includes(origin)) return cb(null, true);
-    return cb(new Error('Not allowed by CORS'));
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  credentials: true,
-};
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // explicit preflight handler
+// -------------------------------
+// 🌐 CORS Configuration
+// -------------------------------
+const allowedOrigins = [
+  'https://email-spam-frontend-six.vercel.app', // Deployed frontend
+  'http://localhost:3000', // Local development
+];
 
-// Body parsing
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`🚫 Blocked by CORS: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+
+// -------------------------------
+// 🧩 Body Parsing
+// -------------------------------
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Health (no DB needed)
-app.get('/api/health', (_req, res) => res.status(200).json({ ok: true }));
+// -------------------------------
+// 🗄️ Database Connection
+// -------------------------------
+connectDB()
+  .then(() => console.log('✅ MongoDB connection established'))
+  .catch((err) => {
+    console.error('❌ Failed to connect to MongoDB:', err);
+    process.exit(1);
+  });
 
-// Connect DB per request (serverless-safe)
-app.use(async (_req, _res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    next(err);
-  }
-});
+// -------------------------------
+// 🩺 Health Check
+// -------------------------------
+app.get('/api/health', (_req, res) =>
+  res.status(200).json({ ok: true, timestamp: new Date().toISOString() })
+);
 
-// Root
+// -------------------------------
+// 🏠 Root Route
+// -------------------------------
 app.get('/', (_req, res) => {
-  res.json({ message: 'API Server is running', timestamp: new Date().toISOString() });
+  res.json({
+    message: '🚀 API Server is running successfully',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// Routes
+// -------------------------------
+// 🚏 API Routes
+// -------------------------------
 app.use('/api/auth', authRoutes);
 app.use('/api/tests', testsRouter);
 
-// Error handler
+// -------------------------------
+// ❗ Error Handling Middleware
+// -------------------------------
 app.use((err, _req, res, _next) => {
-  console.error('Error:', err);
+  console.error('❌ Error:', err);
   res.status(500).json({
     error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
+    message:
+      process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong, please try again later.',
   });
 });
 
-// 404 catch-all
+// -------------------------------
+// 🚫 404 - Not Found Handler
+// -------------------------------
 app.use((req, res) => res.status(404).json({ error: 'Endpoint not found' }));
 
-// Start locally only; on Vercel we export the app
+// -------------------------------
+// 🚀 Start Server (local only)
+// -------------------------------
 const PORT = process.env.PORT || 4000;
-if (!process.env.VERCEL) {
+
+// Only start listening locally (Vercel handles this automatically)
+if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`✅ Server running at http://localhost:${PORT}`);
   });
 }
 
+// Export for serverless platforms (Vercel)
 module.exports = app;
