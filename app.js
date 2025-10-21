@@ -2,8 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const mongoose = require('mongoose');
-
+const connectDB = require('./src/config/db');
 const authRoutes = require('./src/routes/auth');
 const testsRouter = require('./src/routes/tests');
 
@@ -20,10 +19,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // DB
-mongoose
-  .connect(process.env.MONGODB_URI || '')
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+connectDB().catch((err) => {
+  console.error('Failed to connect to the database on startup:', err);
+  process.exit(1);
+});
 
 // Health
 app.get('/api/health', (_req, res) => res.status(200).json({ ok: true }));
